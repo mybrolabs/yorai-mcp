@@ -1,6 +1,12 @@
 # Docker Compose buat VPS (dites di Hostinger Docker Manager + Traefik bawaan template n8n).
-# Tiap start, container ambil kode terbaru dari branch main di GitHub.
-# Env yang wajib diisi di panel: YORAI_API_KEY, MCP_SECRET (minimal 24 karakter).
+# Tiap start, container ambil kode terbaru dari GitHub (repo di YORAI_MCP_REPO, default repo ini).
+#
+# Env yang wajib diisi (di panel Docker Manager atau file .env di sebelah file ini):
+#   YORAI_API_KEY   API key dari https://yorai.id/app/api
+#   MCP_SECRET      minimal 24 karakter, bikin pakai: openssl rand -hex 24
+#   DOMAIN          subdomain lu yang udah diarahkan ke IP VPS, contoh: yorai-mcp.domainlu.com
+# Opsional:
+#   YORAI_MCP_REPO  owner/repo kalau lu pakai fork sendiri (disarankan), default mybrolabs/yorai-mcp
 services:
   yorai-mcp:
     image: node:22-alpine
@@ -10,19 +16,20 @@ services:
       - -c
       - >-
         mkdir -p /data/app;
-        if wget -qO /tmp/src.tgz https://codeload.github.com/mybrolabs/yorai-mcp/tar.gz/refs/heads/main;
+        if wget -qO /tmp/src.tgz https://codeload.github.com/$${YORAI_MCP_REPO}/tar.gz/refs/heads/main;
         then rm -rf /data/new && mkdir -p /data/new && tar xzf /tmp/src.tgz -C /data/new --strip-components=1
         && cd /data/new && npm ci --omit=dev --no-audit --no-fund
-        && rm -rf /data/app && mv /data/new /data/app;
-        else echo "download gagal, pakai kode terakhir"; fi;
+        && rm -rf /data/app && mv /data/new /data/app && echo kode-terbaru-terpasang;
+        else echo download-gagal-pakai-kode-terakhir; fi;
         cd /data/app && exec node dist/http.js
     environment:
       - HOST=0.0.0.0
       - PORT=3333
       - YORAI_API_KEY=${YORAI_API_KEY}
       - MCP_SECRET=${MCP_SECRET}
-      - PUBLIC_URL=https://yorai-mcp.domainlu.com
+      - PUBLIC_URL=https://${DOMAIN}
       - YORAI_DOWNLOAD_DIR=/data/hasil
+      - YORAI_MCP_REPO=${YORAI_MCP_REPO:-mybrolabs/yorai-mcp}
     volumes:
       - yorai_data:/data
     networks:
@@ -30,7 +37,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=n8n_default
-      - traefik.http.routers.yoraimcp.rule=Host(`yorai-mcp.domainlu.com`)
+      - traefik.http.routers.yoraimcp.rule=Host(`${DOMAIN}`)
       - traefik.http.routers.yoraimcp.entrypoints=websecure
       - traefik.http.routers.yoraimcp.tls=true
       - traefik.http.routers.yoraimcp.tls.certresolver=mytlschallenge
