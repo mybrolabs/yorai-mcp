@@ -1,0 +1,44 @@
+# Docker Compose buat VPS (dites di Hostinger Docker Manager + Traefik bawaan template n8n).
+# Tiap start, container ambil kode terbaru dari branch main di GitHub.
+# Env yang wajib diisi di panel: YORAI_API_KEY, MCP_SECRET (minimal 24 karakter).
+services:
+  yorai-mcp:
+    image: node:22-alpine
+    restart: always
+    command:
+      - sh
+      - -c
+      - >-
+        mkdir -p /data/app;
+        if wget -qO /tmp/src.tgz https://codeload.github.com/mybrolabs/yorai-mcp/tar.gz/refs/heads/main;
+        then rm -rf /data/new && mkdir -p /data/new && tar xzf /tmp/src.tgz -C /data/new --strip-components=1
+        && cd /data/new && npm ci --omit=dev --no-audit --no-fund
+        && rm -rf /data/app && mv /data/new /data/app;
+        else echo "download gagal, pakai kode terakhir"; fi;
+        cd /data/app && exec node dist/http.js
+    environment:
+      - HOST=0.0.0.0
+      - PORT=3333
+      - YORAI_API_KEY=${YORAI_API_KEY}
+      - MCP_SECRET=${MCP_SECRET}
+      - PUBLIC_URL=https://yorai-mcp.domainlu.com
+      - YORAI_DOWNLOAD_DIR=/data/hasil
+    volumes:
+      - yorai_data:/data
+    networks:
+      - n8n_default
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=n8n_default
+      - traefik.http.routers.yoraimcp.rule=Host(`yorai-mcp.domainlu.com`)
+      - traefik.http.routers.yoraimcp.entrypoints=websecure
+      - traefik.http.routers.yoraimcp.tls=true
+      - traefik.http.routers.yoraimcp.tls.certresolver=mytlschallenge
+      - traefik.http.services.yoraimcp.loadbalancer.server.port=3333
+
+networks:
+  n8n_default:
+    external: true
+
+volumes:
+  yorai_data:
