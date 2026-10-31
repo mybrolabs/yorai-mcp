@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { YoraiClient, YoraiError, loadConfig } from "./yorai.js";
 import { createUploadSession, getUploadSession } from "./uploads.js";
+import { downloadDir, publicDownloadUrl } from "./downloads.js";
 const MIME = {
     ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
     ".gif": "image/gif", ".bmp": "image/bmp", ".mp4": "video/mp4", ".mov": "video/quicktime",
@@ -260,18 +261,22 @@ export function buildServer(opts = {}) {
     server.registerTool("yorai_download_file", {
         title: "Download a Yorai file",
         description: "Save a Yorai file (e.g. a job output id) to disk on the machine running this MCP server. Yorai purges results after 14 days. " +
-            "Default folder: YORAI_DOWNLOAD_DIR or ~/Downloads/yorai.",
+            "Default folder: YORAI_DOWNLOAD_DIR or ~/Downloads/yorai. In remote mode the result includes download_url, a public link the user can open on their phone — always give that link to the user.",
         inputSchema: { id: z.string(), save_dir: z.string().optional(), filename: z.string().optional() },
     }, async ({ id, save_dir, filename }) => {
         try {
-            const home = process.env.HOME || process.env.USERPROFILE || ".";
-            const dir = resolve(save_dir || process.env.YORAI_DOWNLOAD_DIR || join(home, "Downloads", "yorai"));
+            const dir = resolve(save_dir || downloadDir());
             const f = await client.downloadFile(id);
             const name = filename || f.filename || `${id}${EXT_BY_MIME[f.mime.split(";")[0]] || ""}`;
             const out = join(dir, basename(name));
             await mkdir(dirname(out), { recursive: true });
             await writeFile(out, f.data);
-            return json({ saved_to: out, bytes: f.data.byteLength, mime: f.mime });
+            const result = { saved_to: out, bytes: f.data.byteLength, mime: f.mime };
+            if (opts.publicUrl && dir === downloadDir()) {
+                result.download_url = publicDownloadUrl(opts.publicUrl, basename(out));
+                result.note = "Kasih download_url ke user: bisa langsung dibuka di HP. Tambah ?dl=1 untuk paksa download.";
+            }
+            return json(result);
         }
         catch (e) {
             return fail(e);

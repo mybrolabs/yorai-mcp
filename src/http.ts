@@ -7,6 +7,7 @@ import { timingSafeEqual } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildServer } from "./server.js";
 import { mountUploadRoutes } from "./uploads.js";
+import { mountDownloadRoutes } from "./downloads.js";
 
 const PORT = Number(process.env.PORT || 3333);
 const HOST = process.env.HOST || "127.0.0.1";
@@ -28,6 +29,7 @@ app.use(express.json({ limit: "4mb" }));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 mountUploadRoutes(app);
+mountDownloadRoutes(app);
 
 const handler: express.RequestHandler = async (req, res) => {
   const fromPath = String(req.params.secret ?? "");
